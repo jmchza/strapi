@@ -8,18 +8,25 @@
 import React from 'react';
 import { Switch, Route } from 'react-router-dom';
 
-// Utils
-import { pluginId } from 'app';
+import pluginId from '../../pluginId';
 
 // Containers
-import ConfigPage from 'containers/ConfigPage';
+import ConfigPage from '../ConfigPage';
 
 function App() {
   return (
     <div className={pluginId}>
       <Switch>
-        <Route path={`/plugins/${pluginId}/configurations/:env`} component={ConfigPage} exact />
-        <Route path={`/plugins/${pluginId}/configurations/`} component={ConfigPage} exact />
+        <Route
+          path={`/plugins/${pluginId}/configurations/:env`}
+          component={ConfigPage}
+          exact
+        />
+        <Route
+          path={`/plugins/${pluginId}/configurations/`}
+          component={ConfigPage}
+          exact
+        />
         <Route path={`/plugins/${pluginId}`} component={ConfigPage} exact />
       </Switch>
     </div>

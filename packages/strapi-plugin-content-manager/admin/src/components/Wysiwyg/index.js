@@ -16,11 +16,14 @@ import {
 import PropTypes from 'prop-types';
 import { isEmpty, isNaN, replace, words } from 'lodash';
 import cn from 'classnames';
-import Controls from 'components/WysiwygInlineControls';
-import Drop from 'components/WysiwygDropUpload';
-import WysiwygBottomControls from 'components/WysiwygBottomControls';
-import WysiwygEditor from 'components/WysiwygEditor';
-import request from 'utils/request';
+
+import { request } from 'strapi-helper-plugin';
+import WysiwygProvider from '../../containers/WysiwygProvider';
+import Controls from '../WysiwygInlineControls';
+import Drop from '../WysiwygDropUpload';
+import WysiwygBottomControls from '../WysiwygBottomControls';
+import WysiwygEditor from '../WysiwygEditor';
+
 import CustomSelect from './customSelect';
 import PreviewControl from './previewControl';
 import PreviewWysiwyg from './previewWysiwyg';
@@ -40,7 +43,7 @@ import {
   onTab,
   updateSelection,
 } from './utils';
-import styles from './styles.scss';
+import EditorWrapper from './EditorWrapper';
 
 /* eslint-disable react/jsx-handler-names */
 /* eslint-disable react/sort-comp */
@@ -64,15 +67,6 @@ class Wysiwyg extends React.Component {
       return this.domEditor.blur();
     };
   }
-
-  getChildContext = () => ({
-    handleChangeSelect: this.handleChangeSelect,
-    headerValue: this.state.headerValue,
-    html: this.props.value,
-    isPreviewMode: this.state.isPreviewMode,
-    isFullscreen: this.state.isFullscreen,
-    placeholder: this.props.placeholder,
-  });
 
   componentDidMount() {
     if (this.props.autoFocus) {
@@ -110,6 +104,10 @@ class Wysiwyg extends React.Component {
     }
 
     if (nextState.headerValue !== this.state.headerValue) {
+      return true;
+    }
+
+    if (nextProps.error !== this.props.error) {
       return true;
     }
 
@@ -158,14 +156,17 @@ class Wysiwyg extends React.Component {
       defaultContent,
       startReplacer,
       endReplacer,
-      cursorPosition,
+      cursorPosition
     );
     // Merge the current selection with the new one
-    const updatedSelection = this.getSelection().merge({ anchorOffset, focusOffset });
+    const updatedSelection = this.getSelection().merge({
+      anchorOffset,
+      focusOffset,
+    });
     const newEditorState = EditorState.push(
       this.getEditorState(),
       textWithEntity,
-      'insert-character',
+      'insert-character'
     );
     // Update the parent reducer
     this.sendData(newEditorState);
@@ -173,13 +174,11 @@ class Wysiwyg extends React.Component {
     if (selectedText !== '') {
       return this.setState(
         {
-          // Move the cursor to the end (this line forces the cursor to be at the end of the content)
-          // It may go at the end of the last block
-          editorState: EditorState.moveFocusToEnd(newEditorState),
+          editorState: newEditorState,
         },
         () => {
           this.focus();
-        },
+        }
       );
     }
 
@@ -202,7 +201,10 @@ class Wysiwyg extends React.Component {
     // So we need to move all the next blocks
     if (getOffSets(this.getSelection()).start !== 0) {
       // Retrieve all the blocks after the current position
-      const nextBlocks = getNextBlocksList(newEditorState, this.getSelection().getStartKey());
+      const nextBlocks = getNextBlocksList(
+        newEditorState,
+        this.getSelection().getStartKey()
+      );
       let liNumber = 1;
 
       // Loop to update each block after the inserted li
@@ -210,19 +212,26 @@ class Wysiwyg extends React.Component {
         const previousContent =
           index === 0
             ? this.getEditorState()
-              .getCurrentContent()
-              .getBlockForKey(this.getCurrentAnchorKey())
+                .getCurrentContent()
+                .getBlockForKey(this.getCurrentAnchorKey())
             : newEditorState.getCurrentContent().getBlockBefore(block.getKey());
         // Check if there was an li before the position so we update the entire list bullets
-        const number = previousContent ? parseInt(previousContent.getText().split('.')[0], 10) : 0;
+        const number = previousContent
+          ? parseInt(previousContent.getText().split('.')[0], 10)
+          : 0;
         liNumber = isNaN(number) ? 1 : number + 1;
-        const nextBlockText = index === 0 ? `${liNumber}. ` : nextBlocks.get(index - 1).getText();
+        const nextBlockText =
+          index === 0 ? `${liNumber}. ` : nextBlocks.get(index - 1).getText();
         // Update the current block
-        const newBlock = createNewBlock(nextBlockText, 'block-list', block.getKey());
+        const newBlock = createNewBlock(
+          nextBlockText,
+          'block-list',
+          block.getKey()
+        );
         // Update the contentState
         const newContentState = this.createNewContentStateFromBlock(
           newBlock,
-          newEditorState.getCurrentContent(),
+          newEditorState.getCurrentContent()
         );
         newEditorState = EditorState.push(newEditorState, newContentState);
       });
@@ -230,21 +239,29 @@ class Wysiwyg extends React.Component {
       // Move the cursor to the correct position and add a space after '.'
       // 2 for the dot and the space after, we add the number length (10 = offset of 2)
       const offset = 2 + liNumber.toString().length;
-      const updatedSelection = updateSelection(this.getSelection(), nextBlocks, offset);
+      const updatedSelection = updateSelection(
+        this.getSelection(),
+        nextBlocks,
+        offset
+      );
 
       return this.setState({
-        editorState: EditorState.acceptSelection(newEditorState, updatedSelection),
+        editorState: EditorState.acceptSelection(
+          newEditorState,
+          updatedSelection
+        ),
       });
     }
 
     // If the cursor is at the beginning we need to move all the content after the cursor so we don't loose the data
     selectedBlocksList.map((block, i) => {
       const selectedText = block.getText();
-      const li = selectedText === '' ? `${i + 1}. ` : `${i + 1}. ${selectedText}`;
+      const li =
+        selectedText === '' ? `${i + 1}. ` : `${i + 1}. ${selectedText}`;
       const newBlock = createNewBlock(li, 'block-list', block.getKey());
       const newContentState = this.createNewContentStateFromBlock(
         newBlock,
-        newEditorState.getCurrentContent(),
+        newEditorState.getCurrentContent()
       );
       newEditorState = EditorState.push(newEditorState, newContentState);
     });
@@ -252,7 +269,9 @@ class Wysiwyg extends React.Component {
     // Update the parent reducer
     this.sendData(newEditorState);
 
-    return this.setState({ editorState: EditorState.moveFocusToEnd(newEditorState) });
+    return this.setState({
+      editorState: EditorState.moveFocusToEnd(newEditorState),
+    });
   };
 
   /**
@@ -267,21 +286,36 @@ class Wysiwyg extends React.Component {
     let newEditorState = this.getEditorState();
 
     if (getOffSets(this.getSelection()).start !== 0) {
-      const nextBlocks = getNextBlocksList(newEditorState, this.getSelection().getStartKey());
+      const nextBlocks = getNextBlocksList(
+        newEditorState,
+        this.getSelection().getStartKey()
+      );
 
       nextBlocks.map((block, index) => {
-        const nextBlockText = index === 0 ? '- ' : nextBlocks.get(index - 1).getText();
-        const newBlock = createNewBlock(nextBlockText, 'block-list', block.getKey());
+        const nextBlockText =
+          index === 0 ? '- ' : nextBlocks.get(index - 1).getText();
+        const newBlock = createNewBlock(
+          nextBlockText,
+          'block-list',
+          block.getKey()
+        );
         const newContentState = this.createNewContentStateFromBlock(
           newBlock,
-          newEditorState.getCurrentContent(),
+          newEditorState.getCurrentContent()
         );
         newEditorState = EditorState.push(newEditorState, newContentState);
       });
-      const updatedSelection = updateSelection(this.getSelection(), nextBlocks, 2);
+      const updatedSelection = updateSelection(
+        this.getSelection(),
+        nextBlocks,
+        2
+      );
 
       return this.setState({
-        editorState: EditorState.acceptSelection(newEditorState, updatedSelection),
+        editorState: EditorState.acceptSelection(
+          newEditorState,
+          updatedSelection
+        ),
       });
     }
 
@@ -291,12 +325,14 @@ class Wysiwyg extends React.Component {
       const newBlock = createNewBlock(li, 'block-list', block.getKey());
       const newContentState = this.createNewContentStateFromBlock(
         newBlock,
-        newEditorState.getCurrentContent(),
+        newEditorState.getCurrentContent()
       );
       newEditorState = EditorState.push(newEditorState, newContentState);
     });
     this.sendData(newEditorState);
-    return this.setState({ editorState: EditorState.moveFocusToEnd(newEditorState) });
+    return this.setState({
+      editorState: EditorState.moveFocusToEnd(newEditorState),
+    });
   };
 
   /**
@@ -304,12 +340,20 @@ class Wysiwyg extends React.Component {
    * @param {String} text header content
    */
   addBlock = text => {
-    const nextBlockKey = this.getNextBlockKey(this.getCurrentAnchorKey()) || genKey();
+    const nextBlockKey =
+      this.getNextBlockKey(this.getCurrentAnchorKey()) || genKey();
     const newBlock = createNewBlock(text, 'header', nextBlockKey);
     const newContentState = this.createNewContentStateFromBlock(newBlock);
     const newEditorState = this.createNewEditorState(newContentState, text);
 
-    return this.setState({ editorState: EditorState.moveFocusToEnd(newEditorState) });
+    return this.setState(
+      {
+        editorState: newEditorState,
+      },
+      () => {
+        this.focus();
+      }
+    );
   };
 
   /**
@@ -329,24 +373,33 @@ class Wysiwyg extends React.Component {
     const { anchorOffset, focusOffset } = getDefaultSelectionOffsets(
       defaultContent,
       startReplacer,
-      endReplacer,
+      endReplacer
     );
-    let newEditorState = this.createNewEditorState(newContentState, defaultContent);
+    let newEditorState = this.createNewEditorState(
+      newContentState,
+      defaultContent
+    );
     const updatedSelection =
       getOffSets(this.getSelection()).start === 0
         ? this.getSelection().merge({ anchorOffset, focusOffset })
         : new SelectionState({
-          anchorKey: newBlock.getKey(),
-          anchorOffset,
-          focusOffset,
-          focusKey: newBlock.getKey(),
-          isBackward: false,
-        });
+            anchorKey: newBlock.getKey(),
+            anchorOffset,
+            focusOffset,
+            focusKey: newBlock.getKey(),
+            isBackward: false,
+          });
 
-    newEditorState = EditorState.acceptSelection(newEditorState, updatedSelection);
+    newEditorState = EditorState.acceptSelection(
+      newEditorState,
+      updatedSelection
+    );
 
     return this.setState({
-      editorState: EditorState.forceSelection(newEditorState, newEditorState.getSelection()),
+      editorState: EditorState.forceSelection(
+        newEditorState,
+        newEditorState.getSelection()
+      ),
     });
   };
 
@@ -363,7 +416,11 @@ class Wysiwyg extends React.Component {
       newEditorState = EditorState.push(this.getEditorState(), newContentState);
     } else {
       const textWithEntity = this.modifyBlockContent(text);
-      newEditorState = EditorState.push(this.getEditorState(), textWithEntity, 'insert-characters');
+      newEditorState = EditorState.push(
+        this.getEditorState(),
+        textWithEntity,
+        'insert-characters'
+      );
     }
     return newEditorState;
   };
@@ -379,9 +436,11 @@ class Wysiwyg extends React.Component {
 
   createNewContentStateFromBlock = (
     newBlock,
-    contentState = this.getEditorState().getCurrentContent(),
+    contentState = this.getEditorState().getCurrentContent()
   ) =>
-    ContentState.createFromBlockArray(this.createNewBlockMap(newBlock, contentState).toArray())
+    ContentState.createFromBlockArray(
+      this.createNewBlockMap(newBlock, contentState).toArray()
+    )
       .set('selectionBefore', contentState.getSelectionBefore())
       .set('selectionAfter', contentState.getSelectionAfter());
 
@@ -444,13 +503,17 @@ class Wysiwyg extends React.Component {
   handleChangeSelect = ({ target }) => {
     this.setState({ headerValue: target.value });
     const selectedText = this.getSelectedText();
-    const title = selectedText === '' ? `${target.value} ` : `${target.value} ${selectedText}`;
+    const title =
+      selectedText === ''
+        ? `${target.value} `
+        : `${target.value} ${selectedText}`;
     this.addBlock(title);
 
     return this.setState({ headerValue: '' });
   };
 
-  handleClickPreview = () => this.setState({ isPreviewMode: !this.state.isPreviewMode });
+  handleClickPreview = () =>
+    this.setState({ isPreviewMode: !this.state.isPreviewMode });
 
   handleDragEnter = e => {
     e.preventDefault();
@@ -511,7 +574,9 @@ class Wysiwyg extends React.Component {
 
   handleReturn = (e, editorState) => {
     const selection = editorState.getSelection();
-    const currentBlock = editorState.getCurrentContent().getBlockForKey(selection.getStartKey());
+    const currentBlock = editorState
+      .getCurrentContent()
+      .getBlockForKey(selection.getStartKey());
 
     if (currentBlock.getText().split('')[0] === '-') {
       this.addUlBlock();
@@ -531,7 +596,11 @@ class Wysiwyg extends React.Component {
 
   mapKeyToEditorCommand = e => {
     if (e.keyCode === 9 /* TAB */) {
-      const newEditorState = RichUtils.onTab(e, this.state.editorState, 4 /* maxDepth */);
+      const newEditorState = RichUtils.onTab(
+        e,
+        this.state.editorState,
+        4 /* maxDepth */
+      );
       if (newEditorState !== this.state.editorState) {
         this.onChange(newEditorState);
       }
@@ -547,8 +616,10 @@ class Wysiwyg extends React.Component {
    * @param  {Map} [contentState=this.getEditorState().getCurrentContent()]
    * @return {Map}
    */
-  modifyBlockContent = (text, contentState = this.getEditorState().getCurrentContent()) =>
-    Modifier.replaceText(contentState, this.getSelection(), text);
+  modifyBlockContent = (
+    text,
+    contentState = this.getEditorState().getCurrentContent()
+  ) => Modifier.replaceText(contentState, this.getSelection(), text);
 
   onChange = editorState => {
     this.setState({ editorState });
@@ -567,17 +638,20 @@ class Wysiwyg extends React.Component {
    * @param  {Map} editorState [description]
    */
   sendData = editorState => {
-    if (this.getEditorState().getCurrentContent() === editorState.getCurrentContent())
-      return;
-
-    this.props.onChange({
-      target: {
-        value: editorState.getCurrentContent().getPlainText(),
-        name: this.props.name,
-        type: 'textarea',
-      },
-    });
-  }
+    if (
+      this.getEditorState().getCurrentContent() !==
+        editorState.getCurrentContent() ||
+      editorState.getLastChangeType() === 'remove-range'
+    ) {
+      this.props.onChange({
+        target: {
+          value: editorState.getCurrentContent().getPlainText(),
+          name: this.props.name,
+          type: 'textarea',
+        },
+      });
+    } else return;
+  };
 
   toggleFullScreen = e => {
     e.preventDefault();
@@ -590,45 +664,76 @@ class Wysiwyg extends React.Component {
   uploadFile = files => {
     const formData = new FormData();
     formData.append('files', files[0]);
-    const headers = {
-      'X-Forwarded-Host': 'strapi',
-    };
+    const headers = {};
 
     let newEditorState = this.getEditorState();
 
-    const nextBlocks = getNextBlocksList(newEditorState, this.getSelection().getStartKey());
+    const nextBlocks = getNextBlocksList(
+      newEditorState,
+      this.getSelection().getStartKey()
+    );
     // Loop to update each block after the inserted li
     nextBlocks.map((block, index) => {
       // Update the current block
-      const nextBlockText = index === 0 ? `![Uploading ${files[0].name}]()` : nextBlocks.get(index - 1).getText();
-      const newBlock = createNewBlock(nextBlockText, 'unstyled', block.getKey());
+      const nextBlockText =
+        index === 0
+          ? `![Uploading ${files[0].name}]()`
+          : nextBlocks.get(index - 1).getText();
+      const newBlock = createNewBlock(
+        nextBlockText,
+        'unstyled',
+        block.getKey()
+      );
       // Update the contentState
       const newContentState = this.createNewContentStateFromBlock(
         newBlock,
-        newEditorState.getCurrentContent(),
+        newEditorState.getCurrentContent()
       );
       newEditorState = EditorState.push(newEditorState, newContentState);
     });
 
     const offset = `![Uploading ${files[0].name}]()`.length;
-    const updatedSelection = updateSelection(this.getSelection(), nextBlocks, offset);
-    this.setState({ editorState: EditorState.acceptSelection(newEditorState, updatedSelection) });
+    const updatedSelection = updateSelection(
+      this.getSelection(),
+      nextBlocks,
+      offset
+    );
+    this.setState({
+      editorState: EditorState.acceptSelection(
+        newEditorState,
+        updatedSelection
+      ),
+    });
 
-    return request('/upload', { method: 'POST', headers, body: formData }, false, false)
+    return request(
+      '/upload',
+      { method: 'POST', headers, body: formData },
+      false,
+      false
+    )
       .then(response => {
         const nextBlockKey = newEditorState
           .getCurrentContent()
           .getKeyAfter(newEditorState.getSelection().getStartKey());
         const content = `![text](${response[0].url})`;
         const newContentState = this.createNewContentStateFromBlock(
-          createNewBlock(content, 'unstyled', nextBlockKey),
+          createNewBlock(content, 'unstyled', nextBlockKey)
         );
 
         newEditorState = EditorState.push(newEditorState, newContentState);
-        const updatedSelection = updateSelection(this.getSelection(), nextBlocks, 2);
+        const updatedSelection = updateSelection(
+          this.getSelection(),
+          nextBlocks,
+          2
+        );
 
-        this.setState({ editorState: EditorState.acceptSelection(newEditorState, updatedSelection) });
         this.sendData(newEditorState);
+        this.setState({
+          editorState: EditorState.acceptSelection(
+            newEditorState,
+            updatedSelection
+          ),
+        });
       })
       .catch(() => {
         this.setState({ editorState: EditorState.undo(this.getEditorState()) });
@@ -651,114 +756,119 @@ class Wysiwyg extends React.Component {
     const editorStyle = isFullscreen ? { marginTop: '0' } : this.props.style;
 
     return (
-      <div className={cn(isFullscreen && styles.fullscreenOverlay)}>
-        {/* FIRST EDITOR WITH CONTROLS} */}
-        <div
-          className={cn(
-            styles.editorWrapper,
-            !this.props.deactivateErrorHighlight && this.props.error && styles.editorError,
-            !isEmpty(this.props.className) && this.props.className,
-          )}
-          onClick={e => {
-            if (isFullscreen) {
-              e.preventDefault();
-              e.stopPropagation();
-            }
-          }}
-          onDragEnter={this.handleDragEnter}
-          onDragOver={this.handleDragOver}
-          style={editorStyle}
-        >
-          {this.state.isDraging && this.renderDrop()}
-          <div className={styles.controlsContainer}>
-            <CustomSelect />
-            {CONTROLS.map((value, key) => (
-              <Controls
-                key={key}
-                buttons={value}
-                disabled={isPreviewMode}
-                editorState={editorState}
-                handlers={{
-                  addContent: this.addContent,
-                  addOlBlock: this.addOlBlock,
-                  addSimpleBlockWithSelection: this.addSimpleBlockWithSelection,
-                  addUlBlock: this.addUlBlock,
-                }}
-                onToggle={this.toggleInlineStyle}
-                onToggleBlock={this.toggleBlockType}
-              />
-            ))}
-            {!isFullscreen ? (
-              <ToggleMode isPreviewMode={isPreviewMode} onClick={this.handleClickPreview} />
+      <WysiwygProvider
+        handleChangeSelect={this.handleChangeSelect}
+        headerValue={this.state.headerValue}
+        html={this.props.value}
+        isPreviewMode={this.state.isPreviewMode}
+        isFullscreen={this.state.isFullscreen}
+        placeholder={this.props.placeholder}
+      >
+        <EditorWrapper isFullscreen={isFullscreen}>
+          {/* FIRST EDITOR WITH CONTROLS} */}
+          <div
+            className={cn(
+              'editorWrapper',
+              !this.props.deactivateErrorHighlight &&
+                this.props.error &&
+                'editorError',
+              !isEmpty(this.props.className) && this.props.className
+            )}
+            onClick={e => {
+              if (isFullscreen) {
+                e.preventDefault();
+                e.stopPropagation();
+              }
+            }}
+            onDragEnter={this.handleDragEnter}
+            onDragOver={this.handleDragOver}
+            style={editorStyle}
+          >
+            {this.state.isDraging && this.renderDrop()}
+            <div className="controlsContainer">
+              <CustomSelect />
+              {CONTROLS.map((value, key) => (
+                <Controls
+                  key={key}
+                  buttons={value}
+                  disabled={isPreviewMode}
+                  editorState={editorState}
+                  handlers={{
+                    addContent: this.addContent,
+                    addOlBlock: this.addOlBlock,
+                    addSimpleBlockWithSelection: this
+                      .addSimpleBlockWithSelection,
+                    addUlBlock: this.addUlBlock,
+                  }}
+                  onToggle={this.toggleInlineStyle}
+                  onToggleBlock={this.toggleBlockType}
+                />
+              ))}
+              {!isFullscreen ? (
+                <ToggleMode
+                  isPreviewMode={isPreviewMode}
+                  onClick={this.handleClickPreview}
+                />
+              ) : (
+                <div style={{ marginRight: '10px' }} />
+              )}
+            </div>
+            {/* WYSIWYG PREVIEW NOT FULLSCREEN */}
+            {isPreviewMode ? (
+              <PreviewWysiwyg data={this.props.value} />
             ) : (
-              <div style={{ marginRight: '10px' }} />
+              <div
+                className={cn('editor', isFullscreen && 'editorFullScreen')}
+                onClick={this.focus}
+              >
+                <WysiwygEditor
+                  blockStyleFn={getBlockStyle}
+                  editorState={editorState}
+                  handleKeyCommand={this.handleKeyCommand}
+                  handlePastedFiles={this.handlePastedFiles}
+                  handleReturn={this.handleReturn}
+                  keyBindingFn={this.mapKeyToEditorCommand}
+                  onBlur={this.handleBlur}
+                  onChange={this.onChange}
+                  onTab={this.handleTab}
+                  placeholder={this.props.placeholder}
+                  setRef={editor => (this.domEditor = editor)}
+                  stripPastedStyles
+                  tabIndex={this.props.tabIndex}
+                />
+                <input className="editorInput" tabIndex="-1" />
+              </div>
+            )}
+            {!isFullscreen && (
+              <WysiwygBottomControls
+                isPreviewMode={isPreviewMode}
+                onClick={this.toggleFullScreen}
+                onChange={this.handleDrop}
+              />
             )}
           </div>
-          {/* WYSIWYG PREVIEW NOT FULLSCREEN */}
-          {isPreviewMode ? (
-            <PreviewWysiwyg data={this.props.value} />
-          ) : (
+          {/* PREVIEW WYSIWYG FULLSCREEN */}
+          {isFullscreen && (
             <div
-              className={cn(styles.editor, isFullscreen && styles.editorFullScreen)}
-              onClick={this.focus}
+              className={cn('editorWrapper')}
+              onClick={e => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              style={{ marginTop: '0' }}
             >
-              <WysiwygEditor
-                blockStyleFn={getBlockStyle}
-                editorState={editorState}
-                handleKeyCommand={this.handleKeyCommand}
-                handlePastedFiles={this.handlePastedFiles}
-                handleReturn={this.handleReturn}
-                keyBindingFn={this.mapKeyToEditorCommand}
-                onBlur={this.handleBlur}
-                onChange={this.onChange}
-                onTab={this.handleTab}
-                placeholder={this.props.placeholder}
-                setRef={editor => (this.domEditor = editor)}
-                stripPastedStyles
-                tabIndex={this.props.tabIndex}
+              <PreviewControl
+                onClick={this.toggleFullScreen}
+                characters={this.getCharactersNumber()}
               />
-              <input className={styles.editorInput} value="" tabIndex="-1" />
+              <PreviewWysiwyg data={this.props.value} />
             </div>
           )}
-          {!isFullscreen && (
-            <WysiwygBottomControls
-              isPreviewMode={isPreviewMode}
-              onClick={this.toggleFullScreen}
-              onChange={this.handleDrop}
-            />
-          )}
-        </div>
-        {/* PREVIEW WYSIWYG FULLSCREEN */}
-        {isFullscreen && (
-          <div
-            className={cn(styles.editorWrapper)}
-            onClick={e => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            style={{ marginTop: '0' }}
-          >
-            <PreviewControl
-              onClick={this.toggleFullScreen}
-              characters={this.getCharactersNumber()}
-            />
-            <PreviewWysiwyg data={this.props.value} />
-          </div>
-        )}
-      </div>
+        </EditorWrapper>
+      </WysiwygProvider>
     );
   }
 }
-
-Wysiwyg.childContextTypes = {
-  handleChangeSelect: PropTypes.func,
-  headerValue: PropTypes.string,
-  html: PropTypes.string,
-  isFullscreen: PropTypes.bool,
-  isPreviewMode: PropTypes.bool,
-  placeholder: PropTypes.string,
-  previewHTML: PropTypes.func,
-};
 
 Wysiwyg.defaultProps = {
   autoFocus: false,

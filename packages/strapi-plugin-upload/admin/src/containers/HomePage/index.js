@@ -7,31 +7,27 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { connect } from 'react-redux';
-// import { createStructuredSelector } from 'reselect';
 import { injectIntl } from 'react-intl';
 import { bindActionCreators, compose } from 'redux';
 import { isEmpty } from 'lodash';
+import { Header } from '@buffetjs/custom';
+import {
+  getQueryParameters,
+  ContainerFluid,
+  InputSearch,
+  PageFooter,
+  GlobalContext,
+} from 'strapi-helper-plugin';
 
-// You can find these components in either
-// ./node_modules/strapi-helper-plugin/lib/src
-// or strapi/packages/strapi-helper-plugin/lib/src
-import ContainerFluid from 'components/ContainerFluid';
-import InputSearch from 'components/InputSearch';
-// import InputSelect from 'components/InputSelect';
-import PageFooter from 'components/PageFooter';
-import PluginHeader from 'components/PluginHeader';
+import pluginId from '../../pluginId';
+import { HomePageContextProvider } from '../../contexts/HomePage';
 
 // Plugin's component
-import EntriesNumber from 'components/EntriesNumber';
-import List from 'components/List';
-import PluginInputFile from 'components/PluginInputFile';
+import EntriesNumber from '../../components/EntriesNumber';
+import List from '../../components/List';
+import PluginInputFile from '../../components/PluginInputFile';
+import { EntriesWrapper, Wrapper } from './components';
 
-// Utils
-import getQueryParameters from 'utils/getQueryParameters';
-import injectReducer from 'utils/injectReducer';
-import injectSaga from 'utils/injectSaga';
-
-// Actions
 import {
   changeParams,
   deleteData,
@@ -40,24 +36,14 @@ import {
   onSearch,
   setParams,
 } from './actions';
-
-// Selectors
 import selectHomePage from './selectors';
-
-// Styles
-import styles from './styles.scss';
-
 import reducer from './reducer';
 import saga from './saga';
 
 export class HomePage extends React.Component {
-  getChildContext = () => (
-    {
-      deleteData: this.props.deleteData,
-    }
-  );
+  static contextType = GlobalContext;
 
-  componentWillMount() {
+  UNSAFE_componentWillMount() {
     if (!isEmpty(this.props.location.search)) {
       const _page = parseInt(this.getURLParams('_page'), 10);
       const _limit = parseInt(this.getURLParams('_limit'), 10);
@@ -70,7 +56,7 @@ export class HomePage extends React.Component {
     this.props.getData();
   }
 
-  componentWillReceiveProps(nextProps) {
+  UNSAFE_componentWillReceiveProps(nextProps) {
     if (nextProps.deleteSuccess !== this.props.deleteSuccess) {
       this.props.getData();
     }
@@ -79,10 +65,12 @@ export class HomePage extends React.Component {
     }
   }
 
-  getURLParams = (type) => getQueryParameters(this.props.location.search, type);
+  getURLParams = type => getQueryParameters(this.props.location.search, type);
 
-  changeSort = (name) => {
-    const { params: { _limit, _page } } = this.props;
+  changeSort = name => {
+    const {
+      params: { _limit, _page },
+    } = this.props;
     const target = {
       name: 'params._sort',
       value: name,
@@ -94,20 +82,21 @@ export class HomePage extends React.Component {
       pathname: this.props.history.pathname,
       search,
     });
-  }
+  };
 
-  handleChangeParams = (e) => {
+  handleChangeParams = e => {
     const { history, params } = this.props;
-    const search = e.target.name === 'params._limit' ?
-      `_page=${params._page}&_limit=${e.target.value}&_sort=${params._sort}`
-      : `_page=${e.target.value}&_limit=${params._limit}&_sort=${params._sort}`;
+    const search =
+      e.target.name === 'params._limit'
+        ? `_page=${params._page}&_limit=${e.target.value}&_sort=${params._sort}`
+        : `_page=${e.target.value}&_limit=${params._limit}&_sort=${params._sort}`;
     this.props.history.push({
       pathname: history.pathname,
       search,
     });
 
     this.props.changeParams(e);
-  }
+  };
 
   renderInputSearch = () => (
     <InputSearch
@@ -115,33 +104,43 @@ export class HomePage extends React.Component {
       name="search"
       onChange={this.props.onSearch}
       placeholder="upload.HomePage.InputSearch.placeholder"
-      style={{ marginTop: '-10px' }}
+      style={{ marginTop: '-11px' }}
       value={this.props.search}
     />
-  )
+  );
 
   render() {
+    const { formatMessage } = this.context;
+
     return (
-      <ContainerFluid>
-        <div className={styles.homePageUpload}>
-          <PluginHeader
-            title={{
-              id: 'upload.HomePage.title',
-            }}
-            description={{
-              id: 'upload.HomePage.description',
-            }}
-            overrideRendering={this.renderInputSearch}
+      <HomePageContextProvider deleteData={this.props.deleteData}>
+        <ContainerFluid className="container-fluid">
+          <Wrapper>
+            <Header
+              actions={[
+                {
+                  Component: this.renderInputSearch,
+                  key: 'input-search',
+                },
+              ]}
+              title={{
+                label: formatMessage({
+                  id: 'upload.HomePage.title',
+                }),
+              }}
+              content={formatMessage({
+                id: 'upload.HomePage.description',
+              })}
+            />
+          </Wrapper>
+          <PluginInputFile
+            name="files"
+            onDrop={this.props.onDrop}
+            showLoader={this.props.uploadFilesLoading}
           />
-        </div>
-        <PluginInputFile
-          name="files"
-          onDrop={this.props.onDrop}
-          showLoader={this.props.uploadFilesLoading}
-        />
-        <div className={styles.entriesWrapper}>
-          <div>
-            {/* NOTE: Prepare for bulk actions}
+          <EntriesWrapper>
+            <div>
+              {/* NOTE: Prepare for bulk actions}
               <InputSelect
               name="bulkAction"
               onChange={() => console.log('change')}
@@ -149,33 +148,27 @@ export class HomePage extends React.Component {
               style={{ minWidth: '200px', height: '32px', marginTop: '-8px' }}
               />
             */}
-          </div>
-          <EntriesNumber number={this.props.entriesNumber} />
-        </div>
-        <List
-          data={this.props.uploadedFiles}
-          changeSort={this.changeSort}
-          sort={this.props.params._sort}
-        />
-        <div className="col-md-12">
-          <PageFooter
-            count={this.props.entriesNumber}
-            onChangeParams={this.handleChangeParams}
-            params={this.props.params}
+            </div>
+            <EntriesNumber number={this.props.entriesNumber} />
+          </EntriesWrapper>
+          <List
+            data={this.props.uploadedFiles}
+            changeSort={this.changeSort}
+            sort={this.props.params._sort}
           />
-        </div>
-      </ContainerFluid>
+          <div className="col-md-12">
+            <PageFooter
+              count={this.props.entriesNumber}
+              context={{ emitEvent: () => {} }}
+              onChangeParams={this.handleChangeParams}
+              params={this.props.params}
+            />
+          </div>
+        </ContainerFluid>
+      </HomePageContextProvider>
     );
   }
 }
-
-HomePage.childContextTypes = {
-  deleteData: PropTypes.func.isRequired,
-};
-
-HomePage.contextTypes = {
-  router: PropTypes.object,
-};
 
 HomePage.defaultProps = {
   params: {
@@ -213,19 +206,26 @@ function mapDispatchToProps(dispatch) {
       onSearch,
       setParams,
     },
-    dispatch,
+    dispatch
   );
 }
 
 const mapStateToProps = selectHomePage();
 
-const withConnect = connect(mapStateToProps, mapDispatchToProps);
+const withConnect = connect(
+  mapStateToProps,
+  mapDispatchToProps
+);
 
-const withReducer = injectReducer({ key: 'homePage', reducer });
-const withSaga = injectSaga({ key: 'homePage', saga });
+const withReducer = strapi.injectReducer({
+  key: 'homePage',
+  reducer,
+  pluginId,
+});
+const withSaga = strapi.injectSaga({ key: 'homePage', saga, pluginId });
 
 export default compose(
   withReducer,
   withSaga,
-  withConnect,
+  withConnect
 )(injectIntl(HomePage));

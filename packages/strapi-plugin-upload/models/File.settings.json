@@ -32,7 +32,7 @@
       "required": true
     },
     "size": {
-      "type": "string",
+      "type": "decimal",
       "configurable": false,
       "required": true
     },
@@ -45,6 +45,10 @@
       "type": "string",
       "configurable": false,
       "required": true
+    },
+    "provider_metadata": {
+      "type": "json",
+      "configurable": false
     },
     "related": {
       "collection": "*",

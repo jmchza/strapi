@@ -1,8 +1,12 @@
 {
   "connection": "default",
+  "collectionName": "users-permissions_user",
   "info": {
     "name": "user",
     "description": ""
+  },
+  "options": {
+    "timestamps": true
   },
   "attributes": {
     "username": {
@@ -18,6 +22,10 @@
       "configurable": false,
       "required": true
     },
+    "provider": {
+      "type": "string",
+      "configurable": false
+    },
     "password": {
       "type": "password",
       "minLength": 6,
@@ -27,13 +35,13 @@
     "resetPasswordToken": {
       "type": "string",
       "configurable": false,
-      " ": true
+      "private": true
     },
     "confirmed": {
       "type": "boolean",
       "default": false,
       "configurable": false
-    }, 
+    },
     "blocked": {
       "type": "boolean",
       "default": false,

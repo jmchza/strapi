@@ -9,41 +9,25 @@ import PropTypes from 'prop-types';
 import { connect } from 'react-redux';
 import { bindActionCreators, compose } from 'redux';
 import { findIndex, get, isEmpty } from 'lodash';
-
-// You can find these components in either
-// ./node_modules/strapi-helper-plugin/lib/src
-// or strapi/packages/strapi-helper-plugin/lib/src
-import ContainerFluid from 'components/ContainerFluid';
-import HeaderNav from 'components/HeaderNav';
-import PluginHeader from 'components/PluginHeader';
-
+import { ContainerFluid, HeaderNav, GlobalContext } from 'strapi-helper-plugin';
+import { Header } from '@buffetjs/custom';
+import pluginId from '../../pluginId';
 // Plugin's components
-import EditForm from 'components/EditForm';
-
-// You can find these utils in either
-// ./node_modules/strapi-helper-plugin/lib/src
-// or strapi/packages/strapi-helper-plugin/lib/src
-import injectReducer from 'utils/injectReducer';
-import injectSaga from 'utils/injectSaga';
-
-import {
-  getSettings,
-  onCancel,
-  onChange,
-  setErrors,
-  submit,
-} from './actions';
-
+import EditForm from '../../components/EditForm';
+import Wrapper from './Wrapper';
+import { getSettings, onCancel, onChange, setErrors, submit } from './actions';
 import reducer from './reducer';
 import saga from './saga';
 import selectConfigPage from './selectors';
 
 class ConfigPage extends React.Component {
+  static contextType = GlobalContext;
+
   componentDidMount() {
     this.getSettings(this.props);
   }
 
-  componentWillReceiveProps(nextProps) {
+  UNSAFE_componentWillReceiveProps(nextProps) {
     // Get new settings on navigation change
     if (nextProps.match.params.env !== this.props.match.params.env) {
       this.getSettings(nextProps);
@@ -55,31 +39,49 @@ class ConfigPage extends React.Component {
     }
   }
 
-  getSelectedProviderIndex = () => findIndex(this.props.settings.providers, ['provider', get(this.props.modifiedData, 'provider')]);
+  getSelectedProviderIndex = () =>
+    findIndex(this.props.settings.providers, [
+      'provider',
+      get(this.props.modifiedData, 'provider'),
+    ]);
 
   /**
    * Get Settings depending on the props
    * @param  {Object} props
    * @return {Func}       calls the saga that gets the current settings
    */
-  getSettings = (props) => {
-    const { match: { params: { env} } } = props;
+  getSettings = props => {
+    const {
+      match: {
+        params: { env },
+      },
+    } = props;
     this.props.getSettings(env);
-  }
+  };
 
   generateLinks = () => {
-    const headerNavLinks = this.props.appEnvironments.reduce((acc, current) => {
-      const link = Object.assign(current, { to: `/plugins/upload/configurations/${current.name}` });
-      acc.push(link);
-      return acc;
-    }, []).sort(link => link.name === 'production');
+    const headerNavLinks = this.props.appEnvironments
+      .reduce((acc, current) => {
+        const link = Object.assign(current, {
+          to: `/plugins/upload/configurations/${current.name}`,
+        });
+        acc.push(link);
+        return acc;
+      }, [])
+      .sort(link => link.name === 'production');
 
     return headerNavLinks;
-  }
+  };
 
-  handleSubmit = (e) => {
+  handleSubmit = e => {
     e.preventDefault();
-    const formErrors = Object.keys(get(this.props.settings, ['providers', this.getSelectedProviderIndex(), 'auth'], {})).reduce((acc, current) => {
+    const formErrors = Object.keys(
+      get(
+        this.props.settings,
+        ['providers', this.getSelectedProviderIndex(), 'auth'],
+        {}
+      )
+    ).reduce((acc, current) => {
       if (isEmpty(get(this.props.modifiedData, current, ''))) {
         acc.push({
           name: current,
@@ -94,34 +96,44 @@ class ConfigPage extends React.Component {
     }
 
     return this.props.submit();
-  }
+  };
 
   pluginHeaderActions = [
     {
-      kind: 'secondary',
-      label: 'app.components.Button.cancel',
+      color: 'cancel',
+      label: this.context.formatMessage({ id: 'app.components.Button.cancel' }),
       onClick: this.props.onCancel,
       type: 'button',
+      key: 'button-cancel',
     },
     {
-      kind: 'primary',
-      label: 'app.components.Button.save',
+      color: 'success',
+      className: 'button-submit',
+      label: this.context.formatMessage({ id: 'app.components.Button.save' }),
       onClick: this.handleSubmit,
       type: 'submit',
+      key: 'button-submit',
     },
   ];
 
   render() {
+    const { formatMessage } = this.context;
+
     return (
-      <div>
+      <Wrapper>
         <form onSubmit={this.handleSubmit}>
           <ContainerFluid>
-            <PluginHeader
+            <Header
               actions={this.pluginHeaderActions}
-              description={{ id: 'upload.ConfigPage.description' }}
-              title={{ id: 'upload.ConfigPage.title'}}
+              content={formatMessage({ id: 'upload.ConfigPage.description' })}
+              title={{
+                label: formatMessage({ id: 'upload.ConfigPage.title' }),
+              }}
             />
-            <HeaderNav links={this.generateLinks()} />
+            <HeaderNav
+              links={this.generateLinks()}
+              style={{ marginTop: '4.6rem' }}
+            />
             <EditForm
               didCheckErrors={this.props.didCheckErrors}
               formErrors={this.props.formErrors}
@@ -132,12 +144,10 @@ class ConfigPage extends React.Component {
             />
           </ContainerFluid>
         </form>
-      </div>
+      </Wrapper>
     );
   }
 }
-
-ConfigPage.contextTypes = {};
 
 ConfigPage.defaultProps = {
   appEnvironments: [],
@@ -172,19 +182,26 @@ function mapDispatchToProps(dispatch) {
       setErrors,
       submit,
     },
-    dispatch,
+    dispatch
   );
 }
 
 const mapStateToProps = selectConfigPage();
 
-const withConnect = connect(mapStateToProps, mapDispatchToProps);
+const withConnect = connect(
+  mapStateToProps,
+  mapDispatchToProps
+);
 
-const withReducer = injectReducer({ key: 'configPage', reducer });
-const withSaga = injectSaga({ key: 'configPage', saga });
+const withReducer = strapi.injectReducer({
+  key: 'configPage',
+  reducer,
+  pluginId,
+});
+const withSaga = strapi.injectSaga({ key: 'configPage', saga, pluginId });
 
 export default compose(
   withReducer,
   withSaga,
-  withConnect,
+  withConnect
 )(ConfigPage);

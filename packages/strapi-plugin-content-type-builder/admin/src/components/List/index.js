@@ -1,71 +1,178 @@
 /**
-*
-* List
-*
-*/
+ *
+ * List
+ *
+ */
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { map } from 'lodash';
+import { useGlobalContext } from 'strapi-helper-plugin';
+import { Plus } from '@buffetjs/icons';
 
-import Button from 'components/Button';
-import styles from './styles.scss';
+import pluginId from '../../pluginId';
+import useListView from '../../hooks/useListView';
+import useDataManager from '../../hooks/useDataManager';
+import DynamicZoneList from '../DynamicZoneList';
+import ComponentList from '../ComponentList';
+import { ListButton } from '../ListButton';
+import Wrapper from './List';
 
-class List extends React.Component { // eslint-disable-line react/prefer-stateless-function
-  render() {
-    const title = this.props.renderCustomListTitle ?
-      this.props.renderCustomListTitle(this.props, styles)
-      : this.props.listContent.title;
+function List({
+  className,
+  customRowComponent,
+  items,
+  addComponentToDZ,
+  targetUid,
+  mainTypeName,
+  editTarget,
+  isFromDynamicZone,
+  isMain,
+  firstLoopComponentName,
+  firstLoopComponentUid,
+  secondLoopComponentName,
+  secondLoopComponentUid,
+  isSub,
+}) {
+  const { formatMessage } = useGlobalContext();
+  const { isInDevelopmentMode } = useDataManager();
+  const { openModalAddField } = useListView();
+  const onClickAddField = () => {
+    let headerDisplayName = mainTypeName;
 
-    return (
-      <div className={styles.list}>
-        <div className={styles.flex}>
-          {title}
-          <div className={styles.buttonContainer}>
-            <Button
-              onClick={this.props.onButtonClick}
-              secondaryHotlineAdd
-              label="content-type-builder.button.attributes.add"
-            />
-          </div>
-        </div>
-        <div className={styles.ulContainer}>
-          <ul>
-            {map(this.props.listContent[this.props.listContentMappingKey], (row, key) => {
-              if (this.props.renderCustomLi) return this.props.renderCustomLi(row, key);
+    if (firstLoopComponentName) {
+      headerDisplayName = firstLoopComponentName;
+    }
+
+    if (secondLoopComponentUid) {
+      headerDisplayName = secondLoopComponentName;
+    }
+
+    openModalAddField(
+      editTarget,
+      targetUid,
+      headerDisplayName,
+      firstLoopComponentUid ? mainTypeName : null,
+      secondLoopComponentName ? firstLoopComponentName : null,
+      secondLoopComponentUid ? firstLoopComponentUid : null
+    );
+  };
+
+  const addButtonProps = {
+    icon: !isSub ? <Plus fill="#007eff" width="11px" height="11px" /> : false,
+    color: 'primary',
+    label: isInDevelopmentMode
+      ? formatMessage({
+          id: !isSub
+            ? `${pluginId}.form.button.add.field.to.${editTarget}`
+            : `${pluginId}.form.button.add.field.to.component`,
+        })
+      : null,
+    onClick: onClickAddField,
+  };
+
+  if (!targetUid) {
+    return null;
+  }
+
+  return (
+    <>
+      <Wrapper className={className} isFromDynamicZone={isFromDynamicZone}>
+        <table>
+          <tbody>
+            {items.map(item => {
+              const { type } = item;
+              const CustomRow = customRowComponent;
 
               return (
-                <li key={key}>
-                  {row.name}
-                </li>
+                <React.Fragment key={item.name}>
+                  <CustomRow
+                    {...item}
+                    targetUid={targetUid}
+                    // NEW props
+                    mainTypeName={mainTypeName}
+                    editTarget={editTarget}
+                    firstLoopComponentName={firstLoopComponentName}
+                    firstLoopComponentUid={firstLoopComponentUid}
+                    isFromDynamicZone={isFromDynamicZone}
+                    secondLoopComponentName={secondLoopComponentName}
+                    secondLoopComponentUid={secondLoopComponentUid}
+                  />
+
+                  {type === 'component' && (
+                    <ComponentList
+                      {...item}
+                      customRowComponent={customRowComponent}
+                      targetUid={targetUid}
+                      // NEW PROPS
+
+                      mainTypeName={mainTypeName}
+                      editTarget={editTarget}
+                      firstLoopComponentName={firstLoopComponentName}
+                      firstLoopComponentUid={firstLoopComponentUid}
+                    />
+                  )}
+
+                  {type === 'dynamiczone' && (
+                    <DynamicZoneList
+                      {...item}
+                      customRowComponent={customRowComponent}
+                      addComponent={addComponentToDZ}
+                      targetUid={targetUid}
+                      mainTypeName={mainTypeName}
+                    />
+                  )}
+                </React.Fragment>
               );
             })}
-          </ul>
+          </tbody>
+        </table>
+        {isMain && isInDevelopmentMode && (
+          <ListButton {...addButtonProps}></ListButton>
+        )}
+        {!isMain && <ListButton {...addButtonProps}></ListButton>}
+      </Wrapper>
+      {isSub && (
+        <div className="plus-icon" onClick={onClickAddField}>
+          {isInDevelopmentMode && (
+            <Plus fill={isFromDynamicZone ? '#007EFF' : '#b4b6ba'} />
+          )}
         </div>
-      </div>
-    );
-  }
+      )}
+    </>
+  );
 }
 
-List.propTypes = {
-  listContent: PropTypes.object,
-  listContentMappingKey: PropTypes.string.isRequired,
-  onButtonClick: PropTypes.func,
-  renderCustomLi: PropTypes.oneOfType([
-    PropTypes.bool,
-    PropTypes.func,
-  ]),
-  renderCustomListTitle: PropTypes.oneOfType([
-    PropTypes.bool,
-    PropTypes.func,
-  ]),
+List.defaultProps = {
+  addField: () => {},
+  addComponentToDZ: () => {},
+  className: null,
+  customRowComponent: null,
+  firstLoopComponentName: null,
+  firstLoopComponentUid: null,
+  isFromDynamicZone: false,
+  isMain: false,
+  isSub: false,
+  items: [],
+  secondLoopComponentName: null,
+  secondLoopComponentUid: null,
+  targetUid: null,
 };
 
-List.defaultProps = {
-  listContent: {},
-  onButtonClick: () => {},
-  renderCustomLi: false,
-  renderCustomListTitle: false,
+List.propTypes = {
+  addComponentToDZ: PropTypes.func,
+  className: PropTypes.string,
+  customRowComponent: PropTypes.func,
+  editTarget: PropTypes.string.isRequired,
+  firstLoopComponentName: PropTypes.string,
+  firstLoopComponentUid: PropTypes.string,
+  isFromDynamicZone: PropTypes.bool,
+  isMain: PropTypes.bool,
+  items: PropTypes.instanceOf(Array),
+  mainTypeName: PropTypes.string.isRequired,
+  secondLoopComponentName: PropTypes.string,
+  secondLoopComponentUid: PropTypes.string,
+  targetUid: PropTypes.string,
+  isSub: PropTypes.bool,
 };
 
 export default List;

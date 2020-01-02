@@ -1,77 +1,91 @@
 /**
-*
-* Controller
-*
-*/
+ *
+ * Controller
+ *
+ */
 
-import React from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import { get, map, some } from 'lodash';
-import cn from 'classnames';
+import { get, map } from 'lodash';
 import { FormattedMessage } from 'react-intl';
+import pluginId from '../../pluginId';
+import { useEditPageContext } from '../../contexts/EditPage';
+import InputCheckbox from '../InputCheckboxPlugin';
 
-import InputCheckbox from 'components/InputCheckboxPlugin';
-import styles from './styles.scss';
+import { Header, Label, Separator, Wrapper } from './Components';
 
-class Controller extends React.Component {
-  state = { inputSelected: '', checked: false };
+function Controller({ actions, inputNamePath, isOpen, name }) {
+  const { selectAllActions } = useEditPageContext();
+  const [inputSelected, setInputSelected] = useState('');
 
-  setNewInputSelected = (name) => {
-    this.setState({ inputSelected: name, checked: false });
-  }
+  const areAllActionsSelected = () => {
+    return Object.keys(actions).every(
+      action => actions[action].enabled === true
+    );
+  };
 
-  handleChange = () => {
-    this.setState({ checked: !this.state.checked });
-    this.context.selectAllActions(`${this.props.inputNamePath}.controllers.${this.props.name}`, !this.isAllActionsSelected());
-  }
+  const handleChange = () => {
+    selectAllActions(
+      `${inputNamePath}.controllers.${name}`,
+      !areAllActionsSelected()
+    );
+  };
 
-  isAllActionsSelected = () => !some(this.props.actions, ['enabled', false]);
+  const hasSomeActionsSelected = () => {
+    return Object.keys(actions).some(
+      action => actions[action].enabled === true
+    );
+  };
 
-  render() {
-    return (
-      <div className={styles.controller}>
-        <div className={styles.controllerHeader}>
-          <div>{this.props.name}</div>
-          <div className={styles.separator}></div>
-          <div>
-            <div className={cn(styles.inputCheckbox)}>
-              <div className="form-check">
-                <label className={cn('form-check-label', styles.label, this.state.checked ? styles.checked : '')} htmlFor={this.props.name}>
-                  <input
-                    className="form-check-input"
-                    checked={this.state.checked}
-                    id={this.props.name}
-                    name={this.props.name}
-                    onChange={this.handleChange}
-                    type="checkbox"
-                  />
-                  <FormattedMessage id="users-permissions.Controller.selectAll" />
-                </label>
-              </div>
-            </div>
+  const setNewInputSelected = name => {
+    setInputSelected(name);
+  };
+
+  const labelId = areAllActionsSelected() ? 'unselectAll' : 'selectAll';
+
+  return (
+    <Wrapper>
+      <Header>
+        <div>{name}</div>
+        <Separator />
+        <div className="checkbox-wrapper">
+          <div className="form-check">
+            <Label
+              className={`form-check-label ${areAllActionsSelected() &&
+                'checked'} ${!areAllActionsSelected() &&
+                hasSomeActionsSelected() &&
+                'some-checked'}`}
+              htmlFor={name}
+            >
+              <input
+                className="form-check-input"
+                checked={areAllActionsSelected()}
+                id={name}
+                name={name}
+                onChange={handleChange}
+                type="checkbox"
+              />
+              <FormattedMessage id={`${pluginId}.Controller.${labelId}`} />
+            </Label>
           </div>
         </div>
-        <div className="row">
-          {map(Object.keys(this.props.actions).sort(), (actionKey) => (
-            <InputCheckbox
-              inputSelected={this.state.inputSelected}
-              isOpen={this.props.isOpen}
-              key={actionKey}
-              label={actionKey}
-              name={`${this.props.inputNamePath}.controllers.${this.props.name}.${actionKey}.enabled`}
-              setNewInputSelected={this.setNewInputSelected}
-              value={get(this.props.actions[actionKey], 'enabled')}
-            />
-          ))}
-        </div>
+      </Header>
+      <div className="row">
+        {map(Object.keys(actions).sort(), actionKey => (
+          <InputCheckbox
+            inputSelected={inputSelected}
+            isOpen={isOpen}
+            key={actionKey}
+            label={actionKey}
+            name={`${inputNamePath}.controllers.${name}.${actionKey}.enabled`}
+            setNewInputSelected={setNewInputSelected}
+            value={get(actions[actionKey], 'enabled')}
+          />
+        ))}
       </div>
-    );
-  }
+    </Wrapper>
+  );
 }
-
-Controller.contextTypes = {
-  selectAllActions: PropTypes.func.isRequired,
-};
 
 Controller.defaultProps = {
   actions: {},

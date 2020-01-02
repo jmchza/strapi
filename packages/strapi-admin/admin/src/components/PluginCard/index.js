@@ -1,39 +1,30 @@
 /**
-*
-* PluginCard
-*
-*/
-
+ *
+ * PluginCard
+ *
+ */
+/* eslint-disable */
 import React from 'react';
 import PropTypes from 'prop-types';
-import cn from 'classnames';
-import { isEmpty, replace } from 'lodash';
 import { FormattedMessage } from 'react-intl';
+import { Button, PopUpWarning } from 'strapi-helper-plugin';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import Wrapper from './Wrapper';
 
-// Temporary picture
-import Button from 'components/Button';
-import InstallPluginPopup from 'components/InstallPluginPopup';
-import Official from 'components/Official';
-// import StarsContainer from 'components/StarsContainer';
-
-import logoTShirt from 'assets/images/logo-t-shirt.svg';
-import styles from './styles.scss';
-import Screenshot from './screenshot.png';
+const PLUGINS_WITH_CONFIG = ['content-manager', 'email', 'upload'];
 
 /* eslint-disable react/no-unused-state */
 class PluginCard extends React.Component {
-  state = { isOpen: false, boostrapCol: 'col-lg-4' };
+  state = {
+    boostrapCol: 'col-lg-4',
+    showModalAutoReload: false,
+    showModalEnv: false,
+  };
 
   componentDidMount() {
-    this.shouldOpenModal(this.props);
+    // Listen window resize.
     window.addEventListener('resize', this.setBoostrapCol);
     this.setBoostrapCol();
-  }
-
-  componentWillReceiveProps(nextProps) {
-    if (nextProps.history.location.hash !== this.props.history.location.hash) {
-      this.shouldOpenModal(nextProps);
-    }
   }
 
   componentWillUnmount() {
@@ -52,7 +43,7 @@ class PluginCard extends React.Component {
     }
 
     this.setState({ boostrapCol });
-  }
+  };
 
   handleClick = () => {
     if (this.props.plugin.id !== 'support-us') {
@@ -63,98 +54,168 @@ class PluginCard extends React.Component {
     } else {
       this.aTag.click();
     }
-  }
+  };
 
-  handleDownloadPlugin = (e) => {
-    if (!this.props.isAlreadyInstalled && this.props.plugin.id !== 'support-us') {
-      this.props.downloadPlugin(e);
-    } else if (this.props.plugin.id === 'support-us') {
-      this.aTag.click();
+  handleClickSettings = e => {
+    const settingsPath =
+      this.props.plugin.id === 'content-manager'
+        ? '/plugins/content-manager/ctm-configurations/models'
+        : `/plugins/${this.props.plugin.id}/configurations/${this.props.currentEnvironment}`;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    this.props.history.push(settingsPath);
+  };
+
+  handleDownloadPlugin = e => {
+    const {
+      autoReload,
+      currentEnvironment,
+      downloadPlugin,
+      history: { push },
+      isAlreadyInstalled,
+      plugin: { id },
+    } = this.props;
+
+    if (!autoReload) {
+      this.setState({ showModalAutoReload: true });
+    } else if (currentEnvironment !== 'development') {
+      this.setState({ showModalEnv: true });
+    } else if (!isAlreadyInstalled) {
+      downloadPlugin(e);
     } else {
-      this.props.history.push('/list-plugins');
+      push('/list-plugins');
     }
-  }
-
-  shouldOpenModal = (props) => {
-    this.setState({ isOpen: !isEmpty(props.history.location.hash) });
-  }
+  };
 
   render() {
-    const buttonClass = !this.props.isAlreadyInstalled || this.props.showSupportUsButton ? styles.primary : styles.secondary;
+    const buttonClass = !this.props.isAlreadyInstalled
+      ? 'primary'
+      : 'secondary';
+    const buttonLabel = this.props.isAlreadyInstalled
+      ? 'app.components.PluginCard.Button.label.install'
+      : 'app.components.PluginCard.Button.label.download';
 
-    let buttonLabel = this.props.isAlreadyInstalled ? 'app.components.PluginCard.Button.label.install' : 'app.components.PluginCard.Button.label.download';
-
-    if (this.props.showSupportUsButton) {
-      buttonLabel = 'app.components.PluginCard.Button.label.support';
-    }
-
-    const pluginIcon = (
-      <div className={styles.frame}>
-        <span className={styles.helper} />
-        <img src={`${this.props.plugin.id === 'support-us' ? logoTShirt : this.props.plugin.logo}`} alt="icon" />
+    // Display settings link for a selection of plugins.
+    const settingsComponent = PLUGINS_WITH_CONFIG.includes(
+      this.props.plugin.id
+    ) && (
+      <div className="settings" onClick={this.handleClickSettings}>
+        <FontAwesomeIcon icon="cog" />
+        <FormattedMessage id="app.components.PluginCard.settings" />
       </div>
     );
 
     const descriptions = {
-      short: this.props.plugin.id === 'support-us' ? <FormattedMessage id={this.props.plugin.description.short} /> : this.props.plugin.description.short,
-      long: this.props.plugin.id === 'support-us' ? <FormattedMessage id={this.props.plugin.description.long || this.props.plugin.description.short} /> : this.props.plugin.description.long || this.props.plugin.description.short,
+      short:
+        this.props.plugin.id === 'support-us' ? (
+          <FormattedMessage id={this.props.plugin.description.short} />
+        ) : (
+          this.props.plugin.description.short
+        ),
+      long:
+        this.props.plugin.id === 'support-us' ? (
+          <FormattedMessage
+            id={
+              this.props.plugin.description.long ||
+              this.props.plugin.description.short
+            }
+          />
+        ) : (
+          this.props.plugin.description.long ||
+          this.props.plugin.description.short
+        ),
     };
 
     return (
-      <div className={cn(this.state.boostrapCol, styles.pluginCard)} onClick={this.handleClick}>
-        <div className={styles.wrapper}>
-          <div className={styles.cardTitle}>
-            {pluginIcon}
-            <div>{this.props.plugin.name}</div>
-          </div>
-          <div className={styles.cardDescription}>
-            {descriptions.short}
-            &nbsp;<FormattedMessage id="app.components.PluginCard.more-details" />
-          </div>
-          <div className={styles.cardScreenshot} style={{ backgroundImage: `url(${Screenshot})` }}>
-
-          </div>
-          <div className={styles.cardPrice}>
-            <div>
-              <i className={`fa fa-${this.props.plugin.isCompatible ? 'check' : 'times'}`} />
-              <FormattedMessage id={`app.components.PluginCard.compatible${this.props.plugin.id === 'support-us' ? 'Community' : ''}`} />
-            </div>
-            <div>{this.props.plugin.price !== 0 ? `${this.props.plugin.price}€` : ''}</div>
-          </div>
-          <div className={styles.cardFooter} onClick={e => e.stopPropagation()}>
-            <div className={styles.ratings}>
-              {/*<StarsContainer ratings={this.props.plugin.ratings} />
-              <div>
-                <span style={{ fontWeight: '600', color: '#333740' }}>{this.props.plugin.ratings}</span>
-                <span style={{ fontWeight: '500', color: '#666666' }}>/5</span>
-              </div>
-              */}
-              <Official />
+      <Wrapper className={this.state.boostrapCol}>
+        <div className="wrapper">
+          <div className="cardTitle">
+            <div className="frame">
+              <span className="helper" />
+              <img src={this.props.plugin.logo} alt="icon" />
             </div>
             <div>
+              {this.props.plugin.name}{' '}
+              <i
+                className="fa fa-external-link-alt"
+                onClick={() =>
+                  window.open(
+                    `https://github.com/strapi/strapi/tree/master/packages/strapi-plugin-${this.props.plugin.id}`,
+                    '_blank'
+                  )
+                }
+              />
+            </div>
+          </div>
+          <div className="cardDescription">{descriptions.long}</div>
+          <div className="cardFooter" onClick={e => e.stopPropagation()}>
+            <div className="cardFooterButton">
               <Button
-                className={cn(buttonClass, styles.button)}
+                className={`${buttonClass} button`}
                 label={buttonLabel}
                 onClick={this.handleDownloadPlugin}
               />
               <a
                 href="https://strapi.io/shop"
                 style={{ display: 'none' }}
-                ref={(a) => { this.aTag = a; }}
+                ref={a => {
+                  this.aTag = a;
+                }}
                 target="_blank"
               >
                 &nbsp;
               </a>
             </div>
+            {this.props.isAlreadyInstalled ? (
+              settingsComponent
+            ) : (
+              <div className="compatible">
+                <i
+                  className={`fa fa-${
+                    this.props.plugin.isCompatible ? 'check' : 'times'
+                  }`}
+                />
+                <FormattedMessage
+                  id={`app.components.PluginCard.compatible${
+                    this.props.plugin.id === 'support-us' ? 'Community' : ''
+                  }`}
+                />
+              </div>
+            )}
           </div>
         </div>
-        <InstallPluginPopup
-          history={this.props.history}
-          isAlreadyInstalled={this.props.isAlreadyInstalled}
-          isOpen={!isEmpty(this.props.history.location.hash) && replace(this.props.history.location.hash.split('::')[0], '#', '') === this.props.plugin.id}
-          plugin={this.props.plugin}
+
+        <PopUpWarning
+          content={{
+            message:
+              'app.components.PluginCard.PopUpWarning.install.impossible.autoReload.needed',
+            title:
+              'app.components.PluginCard.PopUpWarning.install.impossible.title',
+            confirm:
+              'app.components.PluginCard.PopUpWarning.install.impossible.confirm',
+          }}
+          isOpen={this.state.showModalAutoReload}
+          onlyConfirmButton
+          onConfirm={() => this.setState({ showModalAutoReload: false })}
+          popUpWarningType="warning"
         />
-      </div>
+        <PopUpWarning
+          content={{
+            message:
+              'app.components.PluginCard.PopUpWarning.install.impossible.environment',
+            title:
+              'app.components.PluginCard.PopUpWarning.install.impossible.title',
+            confirm:
+              'app.components.PluginCard.PopUpWarning.install.impossible.confirm',
+          }}
+          isOpen={this.state.showModalEnv}
+          onlyConfirmButton
+          onConfirm={() => this.setState({ showModalEnv: false })}
+          popUpWarningType="warning"
+        />
+      </Wrapper>
     );
   }
 }
@@ -168,15 +229,14 @@ PluginCard.defaultProps = {
     price: 0,
     ratings: 5,
   },
-  showSupportUsButton: false,
 };
 
 PluginCard.propTypes = {
+  currentEnvironment: PropTypes.string.isRequired,
   downloadPlugin: PropTypes.func.isRequired,
   history: PropTypes.object.isRequired,
   isAlreadyInstalled: PropTypes.bool,
   plugin: PropTypes.object,
-  showSupportUsButton: PropTypes.bool,
 };
 
 export default PluginCard;

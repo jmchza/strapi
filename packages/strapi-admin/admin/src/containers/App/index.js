@@ -11,39 +11,107 @@
  * the linting exception.
  */
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Switch, Route } from 'react-router-dom';
 
-import AdminPage from 'containers/AdminPage';
-import NotFoundPage from 'containers/NotFoundPage';
+import { connect } from 'react-redux';
+import { bindActionCreators, compose } from 'redux';
+import { LoadingIndicatorPage, request } from 'strapi-helper-plugin';
 
-import NotificationProvider from 'containers/NotificationProvider';
+import Admin from '../Admin';
+import AuthPage from '../AuthPage';
+import NotFoundPage from '../NotFoundPage';
+import NotificationProvider from '../NotificationProvider';
+import PrivateRoute from '../PrivateRoute';
+import Theme from '../Theme';
 
-import '../../styles/main.scss';
+import { Content, Wrapper } from './components';
 
-import styles from './styles.scss';
+import GlobalStyle from '../../components/GlobalStyle';
 
-export class App extends React.Component { // eslint-disable-line react/prefer-stateless-function
-  render() {
-    return (
-      <div>
+import { getDataSucceeded } from './actions';
+
+function App(props) {
+  const getDataRef = useRef();
+  const [state, setState] = useState({ hasAdmin: false, isLoading: true });
+  getDataRef.current = props.getDataSucceeded;
+
+  useEffect(() => {
+    const getData = async () => {
+      try {
+        const requestURL = '/users-permissions/init';
+
+        const { hasAdmin } = await request(requestURL, { method: 'GET' });
+        const { data } = await request('/admin/init', { method: 'GET' });
+        const { uuid } = data;
+
+        if (uuid) {
+          try {
+            fetch('https://analytics.strapi.io/track', {
+              method: 'POST',
+              body: JSON.stringify({
+                event: 'didInitializeAdministration',
+                uuid,
+              }),
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+          } catch (e) {
+            // Silent.
+          }
+        }
+
+        getDataRef.current(hasAdmin, data);
+        setState({ hasAdmin, isLoading: false });
+      } catch (err) {
+        strapi.notification.error('app.containers.App.notification.error.init');
+      }
+    };
+
+    getData();
+  }, [getDataRef]);
+
+  if (state.isLoading) {
+    return <LoadingIndicatorPage />;
+  }
+
+  return (
+    <Theme>
+      <Wrapper>
+        <GlobalStyle />
         <NotificationProvider />
-        <div className={styles.container}>
+        <Content>
           <Switch>
-            <Route path="/" component={AdminPage} />
+            <Route
+              path="/auth/:authType"
+              render={routerProps => (
+                <AuthPage {...routerProps} hasAdminUser={state.hasAdmin} />
+              )}
+              exact
+            />
+            <PrivateRoute path="/" component={Admin} />
             <Route path="" component={NotFoundPage} />
           </Switch>
-        </div>
-      </div>
-    );
-  }
+        </Content>
+      </Wrapper>
+    </Theme>
+  );
 }
 
-App.contextTypes = {
-  router: PropTypes.object.isRequired,
+App.propTypes = {
+  getDataSucceeded: PropTypes.func.isRequired,
 };
 
-App.propTypes = {};
+export function mapDispatchToProps(dispatch) {
+  return bindActionCreators({ getDataSucceeded }, dispatch);
+}
 
-export default App;
+const withConnect = connect(
+  null,
+  mapDispatchToProps
+);
+
+export default compose(withConnect)(App);
+export { App };

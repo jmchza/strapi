@@ -9,19 +9,19 @@ import PropTypes from 'prop-types';
 import { get, isEmpty, isFunction } from 'lodash';
 import cn from 'classnames';
 
-// Design
-import Label from 'components/Label';
-import InputDescription from 'components/InputDescription';
-import InputErrors from 'components/InputErrors';
-import InputDate from 'components/InputDate';
-import InputSpacer from 'components/InputSpacer';
-
 // Utils
-import validateInput from 'utils/inputsValidations';
+import validateInput from '../../utils/inputsValidations';
 
-import styles from './styles.scss';
+// Design
+import Label from '../Label';
+import InputDescription from '../InputDescription';
+import InputErrors from '../InputErrors';
+import InputDate from '../InputDate';
+import InputSpacer from '../InputSpacer';
+import Container from './Container';
 
-class InputDateWithErrors extends React.Component { // eslint-disable-line react/prefer-stateless-function
+class InputDateWithErrors extends React.Component {
+  // eslint-disable-line react/prefer-stateless-function
   state = { errors: [], hasInitialValue: false };
 
   componentDidMount() {
@@ -38,7 +38,7 @@ class InputDateWithErrors extends React.Component { // eslint-disable-line react
     }
   }
 
-  componentWillReceiveProps(nextProps) {
+  UNSAFE_componentWillReceiveProps(nextProps) {
     // Show required error if the input's value is received after the compo is mounted
     if (!isEmpty(nextProps.value) && !this.state.hasInitialValue) {
       this.setState({ hasInitialValue: true });
@@ -53,16 +53,16 @@ class InputDateWithErrors extends React.Component { // eslint-disable-line react
   }
 
   /**
-  * Set the errors depending on the validations given to the input
-  * @param  {Object} target
-  */
+   * Set the errors depending on the validations given to the input
+   * @param  {Object} target
+   */
   handleBlur = ({ target }) => {
     // Prevent from displaying error if the input is initially isEmpty
     if (!isEmpty(get(target, 'value')) || this.state.hasInitialValue) {
       const errors = validateInput(target.value, this.props.validations);
       this.setState({ errors, hasInitialValue: true });
     }
-  }
+  };
 
   render() {
     const {
@@ -100,11 +100,11 @@ class InputDateWithErrors extends React.Component { // eslint-disable-line react
     }
 
     return (
-      <div
+      <Container
         className={cn(
-          !isEmpty(customBootstrapClass) && customBootstrapClass || 'col-md-4',
-          styles.containerDate,
-          !isEmpty(className) && className,
+          (!isEmpty(customBootstrapClass) && customBootstrapClass) ||
+            'col-md-4',
+          !isEmpty(className) && className
         )}
         style={style}
       >
@@ -136,11 +136,12 @@ class InputDateWithErrors extends React.Component { // eslint-disable-line react
         />
         <InputErrors
           className={errorsClassName}
-          errors={!noErrorsDescription && this.state.errors || []}
+          errors={(!noErrorsDescription && this.state.errors) || []}
+          name={name}
           style={errorsStyle}
         />
         {spacer}
-      </div>
+      </Container>
     );
   }
 }
@@ -170,6 +171,7 @@ InputDateWithErrors.defaultProps = {
   style: {},
   tabIndex: '0',
   validations: {},
+  value: null,
 };
 
 InputDateWithErrors.propTypes = {
@@ -206,17 +208,14 @@ InputDateWithErrors.propTypes = {
   labelStyle: PropTypes.object,
   name: PropTypes.string.isRequired,
   noErrorsDescription: PropTypes.bool,
-  onBlur: PropTypes.oneOfType([
-    PropTypes.bool,
-    PropTypes.func,
-  ]),
+  onBlur: PropTypes.oneOfType([PropTypes.bool, PropTypes.func]),
   onChange: PropTypes.func.isRequired,
   onFocus: PropTypes.func,
   placeholder: PropTypes.string,
   style: PropTypes.object,
   tabIndex: PropTypes.string,
   validations: PropTypes.object,
-  value: PropTypes.string.isRequired,
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
 };
 
 export default InputDateWithErrors;

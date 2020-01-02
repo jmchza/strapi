@@ -16,82 +16,61 @@ const _ = require('lodash');
 
 module.exports = scope => {
   function generateRoutes() {
-    const tokenID = scope.args.tpl && scope.args.tpl !== 'mongoose' ? 'id' : '_id';
-
     const routes = {
-      routes: [{
-        method: 'GET',
-        path: '/' + scope.humanizeId,
-        handler: scope.globalID + '.find',
-        config: {
-          policies: []
-        }
-      }, {
-        method: 'GET',
-        path: '/' + scope.humanizeId + '/count',
-        handler: scope.globalID + '.count',
-        config: {
-          policies: []
-        }
-      }, {
-        method: 'GET',
-        path: '/' + scope.humanizeId + '/:' + tokenID,
-        handler: scope.globalID + '.findOne',
-        config: {
-          policies: []
-        }
-      }, {
-        method: 'POST',
-        path: '/' + scope.humanizeId,
-        handler: scope.globalID + '.create',
-        config: {
-          policies: []
-        }
-      }, {
-        method: 'PUT',
-        path: '/' + scope.humanizeId + '/:' + tokenID,
-        handler: scope.globalID + '.update',
-        config: {
-          policies: []
-        }
-      }, {
-        method: 'DELETE',
-        path: '/' + scope.humanizeId + '/:' + tokenID,
-        handler: scope.globalID + '.destroy',
-        config: {
-          policies: []
-        }
-      }]
+      routes: [
+        {
+          method: 'GET',
+          path: '/' + scope.route,
+          handler: scope.name + '.find',
+          config: {
+            policies: [],
+          },
+        },
+        {
+          method: 'GET',
+          path: '/' + scope.route + '/count',
+          handler: scope.name + '.count',
+          config: {
+            policies: [],
+          },
+        },
+        {
+          method: 'GET',
+          path: '/' + scope.route + '/:id',
+          handler: scope.name + '.findOne',
+          config: {
+            policies: [],
+          },
+        },
+        {
+          method: 'POST',
+          path: '/' + scope.route,
+          handler: scope.name + '.create',
+          config: {
+            policies: [],
+          },
+        },
+        {
+          method: 'PUT',
+          path: '/' + scope.route + '/:id',
+          handler: scope.name + '.update',
+          config: {
+            policies: [],
+          },
+        },
+        {
+          method: 'DELETE',
+          path: '/' + scope.route + '/:id',
+          handler: scope.name + '.delete',
+          config: {
+            policies: [],
+          },
+        },
+      ],
     };
-
-    if (scope.args.tpl && scope.args.tpl !== 'mongoose') {
-      routes.routes.push({
-        method: 'POST',
-        path: '/' + scope.humanizeId + '/:' + tokenID + '/relationships/:relation',
-        handler: scope.globalID + '.createRelation',
-        config: {
-          policies: []
-        }
-      }, {
-        method: 'PUT',
-        path: '/' + scope.humanizeId + '/:' + tokenID + '/relationships/:relation',
-        handler: scope.globalID + '.updateRelation',
-        config: {
-          policies: []
-        }
-      }, {
-        method: 'DELETE',
-        path: '/' + scope.humanizeId + '/:' + tokenID + '/relationships/:relation',
-        handler: scope.globalID + '.destroyRelation',
-        config: {
-          policies: []
-        }
-      });
-    }
 
     return routes;
   }
-
 
   // We have to delete current file
   if (!_.isEmpty(scope.parentId)) {
@@ -106,14 +85,18 @@ module.exports = scope => {
     } catch (e) {
       // Fake existing routes
       current = {
-        routes: []
+        routes: [],
       };
     }
 
     try {
       const newest = generateRoutes().routes;
       // Merge both array of routes, and remove identical routes
-      _.set(current, 'routes', _.concat(newest, _.differenceWith(current.routes, newest, _.isEqual)));
+      _.set(
+        current,
+        'routes',
+        _.concat(newest, _.differenceWith(current.routes, newest, _.isEqual))
+      );
 
       return current;
     } catch (e) {
